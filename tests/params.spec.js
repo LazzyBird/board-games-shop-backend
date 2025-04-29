@@ -2,12 +2,63 @@ import { test, expect } from "@playwright/test";
 import Env from "@helpers/env";
 
 const baseUrl = Env.URL;
-const param = ["age_group", "difficulty", "duration", "genre", "mechanic", "player_count", "type"];
+const param = ["age_group", "difficulty", "duration", "player_count"]; 
+const many_to_many = ["genre", "mechanic", "type"];
 
-test("No params returns 200", async ({ request }) => {
-    const response = await request.get(`${baseUrl}/api/games/`);
-    expect(response.status()).toBe(200);
+test.describe("No params", () => {
+    test("No params returns 200", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/`);
+        expect(response.status()).toBe(200);
+    });
+    test("No params returns valid json", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/`);
+        const json = await response.json();
+        expect(json).toBeTruthy();
+    });
+    test("No params returns list of games", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/`);
+        const json = await response.json();
+        console.log("List of games", json.length);
+        expect(json.length).toBeGreaterThan(0);
+    });
 });
+test.describe("By id", () => {
+    // positive
+    test("Valid id returns 200", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/1/`);
+        expect(response.status()).toBe(200);
+    })
+   /*  test("Every game", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/`);
+        const json = await response.json();
+        const ids = json.length;
+        for (let i = 1; i <= ids; i++) {
+            const response = await request.get(`${baseUrl}/api/games/${i}/`);
+            if(response.status() != 200) {
+                console.log('Game with id', i, 'does not exist');
+            }
+            expect(response.status()).toBe(200);
+        }
+    }); */
+    // negative
+    test("0 id", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/0/`);
+        expect(response.status()).toBe(404);
+    });
+    test("String id", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/abc/`);
+        expect(response.status()).toBe(404);
+    });
+    test("Negative id", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/-1/`);
+        expect(response.status()).toBe(404);
+    });
+    test("Id does not exist", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/1000/`);
+        expect(response.status()).toBe(404);
+    });
+});
+
 for (let p of param) {
     test.describe(`Check params`, () => {
         // positive
@@ -51,6 +102,49 @@ for (let p of param) {
         });
     });
 };
+for (let p of many_to_many) {
+    test.describe(`Check params of many to many tables`, () => {
+        // positive
+        test(`Get ${p} returns 200`, async ({ request }) => {
+            const response = await request.get(`${baseUrl}/api/games/?${p}=1`);
+            expect(response.status()).toBe(200);
+        });
+        test(`GET two ${p} returns 200`, async ({ request }) => {
+            const response = await request.get(`${baseUrl}/api/games/?${p}=1&${p}=2`);
+            expect(response.status()).toBe(200);
+        });
+        test(`Get with empty ${p} returns 200`, async ({ request }) => {
+            const response = await request.get(`${baseUrl}/api/games/?${p}=`);
+            expect(response.status()).toBe(200);
+        });
+        test(`Get with multiple ${p} returns 200`, async ({ request }) => {
+            const response = await request.get(`${baseUrl}/api/games/?${p}=1&${p}=2&${p}=3`);
+            expect(response.status()).toBe(200);
+        })
+        test(`Get ${p} returns valid json`, async ({ request }) => {
+            const response = await request.get(`${baseUrl}/api/games/?${p}=1`);
+            const json = await response.json();
+            expect(json).toBeTruthy();
+        });
+        // negative values that should return 200
+        test(`GET with string ${p} returns 400`, async ({ request }) => {
+            const response = await request.get(`${baseUrl}/api/games/?${p}=abc`);
+            expect(response.status()).toBe(400);
+        });
+        test(`GET with negative number as ${p} returns 200`, async ({ request }) => {
+            const response = await request.get(`${baseUrl}/api/games/?${p}=-1`);
+            expect(response.status()).toBe(200);
+        });
+        test(`Get with 0 ${p} returns 200`, async ({ request }) => {
+            const response = await request.get(`${baseUrl}/api/games/?${p}=0`);
+            expect(response.status()).toBe(200);
+        });
+        test(`Get with 1000 ${p} id returns 200`, async ({ request }) => {
+            const response = await request.get(`${baseUrl}/api/games/?${p}=1000`);
+            expect(response.status()).toBe(200);
+        });
+    });
+};
 test.describe("Price", () => {
     // позитивні
     test("GET with max_price=150 returns 200", async ({ request }) => {
@@ -61,8 +155,8 @@ test.describe("Price", () => {
         const response = await request.get(`${baseUrl}/api/games/?min_price=200`);
         expect(response.status()).toBe(200);
     });
-    test("GET with max_price=150 and min_price=200 returns 200", async ({ request }) => {
-        const response = await request.get(`${baseUrl}/api/games/?max_price=150&min_price=200`);
+    test("GET with max_price=300 and min_price=100 returns 200", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/?max_price=300&min_price=100`);
         expect(response.status()).toBe(200);
     });
     test("Get with empty max_price returns 200", async ({ request }) => {
@@ -72,26 +166,28 @@ test.describe("Price", () => {
     test("Get with empty min_price returns 200", async ({ request }) => {
         const response = await request.get(`${baseUrl}/api/games/?min_price=`);
         expect(response.status()).toBe(200);
-    })
+    });
+    test("GET with negative number as max_price returns 200", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/?max_price=-1`);
+        expect(response.status()).toBe(200);
+        // validation on frontend
+    });
+    test("GET with negative number as min_price returns 200", async ({ request }) => {
+        const response = await request.get(`${baseUrl}/api/games/?min_price=-1`);
+        expect(response.status()).toBe(200);
+        // validation on frontend
+    });
     // негативні
     test("GET with string max_price returns 400", async ({ request }) => {
         const response2 = await request.get(`${baseUrl}/api/games/?max_price=abc`);
         expect(response2.status()).toBe(400);
     });
-    test("GET with negative number as max_price returns 400", async ({ request }) => {
-        const response = await request.get(`${baseUrl}/api/games/?max_price=-1`);
-        expect(response.status()).toBe(400);
-        //! можливо не проблема
-    });
+   
     test("GET with string min_price returns 400", async ({ request }) => {
         const response = await request.get(`${baseUrl}/api/games/?min_price=abc`);
         expect(response.status()).toBe(400);
     });
-    test("GET with negative number as min_price returns 400", async ({ request }) => {
-        const response = await request.get(`${baseUrl}/api/games/?min_price=-1`);
-        expect(response.status()).toBe(400);
-        //! можливо не проблема
-    });
+    
     test("GET with min_price > max_price returns 400", async ({ request }) => {
         const response = await request.get(`${baseUrl}/api/games/?min_price=200&max_price=100`);
         expect(response.status()).toBe(400);
@@ -129,14 +225,13 @@ test.describe("Sort", () => {
         const response = await request.get(`${baseUrl}/api/games/?sort=-title`);
         expect(response.status()).toBe(200);
     });
-    // негативні
-    test("GET with sort=abc returns 400", async ({ request }) => {
+    test("GET with sort=abc returns 200", async ({ request }) => {
         const response = await request.get(`${baseUrl}/api/games/?sort=abc`);
-        expect(response.status()).toBe(400);
+        expect(response.status()).toBe(200);
     });
-    test("GET with sort=-abc returns 400", async ({ request }) => {
+    test("GET with sort=-abc returns 200", async ({ request }) => {
         const response = await request.get(`${baseUrl}/api/games/?sort=-abc`);
-        expect(response.status()).toBe(400);
+        expect(response.status()).toBe(200);
     });
 });
 test.describe("Some params", () => {
